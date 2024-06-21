@@ -2,11 +2,29 @@ import fetch from 'cross-fetch';
 import { DOMParser } from 'linkedom';
 import { HTMLDocument } from 'linkedom/types/html/document';
 
-export const parsePreviewDataFromUrl = async (url: string) => {
-  const response = await fetch(url);
+export const parsePreviewDataFromUrl = async (
+  url: string
+): Promise<
+  {
+    /**
+     * Final URL, with redirects taken into account.
+     */
+    url: string;
+  } & ReturnType<typeof parsePreviewDataFromHtml>
+> => {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_1) AppleWebKit/601.2.4 (KHTML, like Gecko) Version/9.0.1 Safari/601.2.4 facebookexternalhit/1.1 Facebot Twitterbot/1.0',
+    },
+  });
   const responseHtml = await response.text();
 
-  const structuredDataParser = new StructuredDataHtmlParser({ html: responseHtml });
+  const structuredDataParser = new StructuredDataHtmlParser({
+    html: responseHtml,
+    url,
+  });
   const parsedData = structuredDataParser.parse();
 
   return {
@@ -15,7 +33,9 @@ export const parsePreviewDataFromUrl = async (url: string) => {
   };
 };
 
-export const parsePreviewDataFromHtml = (html: string) => {
+export const parsePreviewDataFromHtml = (
+  html: string
+): ReturnType<StructuredDataHtmlParser['parse']> => {
   const structuredDataParser = new StructuredDataHtmlParser({ html });
   const parsedData = structuredDataParser.parse();
 
@@ -24,9 +44,11 @@ export const parsePreviewDataFromHtml = (html: string) => {
 
 class StructuredDataHtmlParser {
   private document: HTMLDocument;
+  private url?: string;
 
-  public constructor({ html }: { html: string }) {
+  public constructor({ html, url }: { html: string; url?: string }) {
     this.document = new DOMParser().parseFromString(html, 'text/html');
+    this.url = url;
   }
 
   private parseName(): string {
@@ -40,6 +62,20 @@ class StructuredDataHtmlParser {
   }
 
   private parseImages(): string[] {
+    try {
+      if (this.url && ['www.amazon.com'].includes(new URL(this.url).hostname)) {
+        const scriptElement = this.document.querySelector(
+          'script[data-a-state*="desktop-landing-image-data"]'
+        );
+        if (scriptElement.textContent) {
+          const data = JSON.parse(scriptElement.textContent);
+          if (typeof data.landingImageUrl === 'string' && new URL(data.landingImageUrl)) {
+            return [data.landingImageUrl];
+          }
+        }
+      }
+    } catch (e) {}
+
     const image =
       this.document.head
         .querySelector('meta[property="og:image:secure_url"]')

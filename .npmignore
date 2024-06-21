@@ -1,0 +1,4 @@
+.prettierrc.json
+tsconfig.json
+.gitignore
+src/**/*

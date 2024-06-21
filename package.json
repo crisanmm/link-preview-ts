@@ -1,0 +1,36 @@
+{
+  "name": "link-preview-ts",
+  "version": "1.0.2",
+  "description": "TypeScript package that extracts structured data from HTTP links that can be used for preview purposes.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "url": "git+https://github.com/crisanmm/link-preview-ts.git"
+  },
+  "author": "Mihai Crisan",
+  "license": "MIT",
+  "keywords": [
+    "typescript",
+    "link",
+    "url",
+    "http",
+    "preview"
+  ],
+  "dependencies": {
+    "cross-fetch": "^4.0.0",
+    "linkedom": "^0.18.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.2"
+  }
+}

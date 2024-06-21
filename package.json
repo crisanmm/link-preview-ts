@@ -1,6 +1,6 @@
 {
   "name": "link-preview-ts",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "TypeScript package that extracts structured data from HTTP links that can be used for preview purposes.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

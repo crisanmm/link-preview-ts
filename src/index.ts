@@ -1,9 +1,11 @@
 import fetch from 'cross-fetch';
-import { DOMParser } from 'linkedom';
-import { HTMLDocument } from 'linkedom/types/html/document';
+import { parseHTML } from 'linkedom';
 
 export const parsePreviewDataFromUrl = async (
-  url: string
+  url: string,
+  options?: {
+    headers?: HeadersInit;
+  }
 ): Promise<
   {
     /**
@@ -14,10 +16,7 @@ export const parsePreviewDataFromUrl = async (
 > => {
   const response = await fetch(url, {
     method: 'GET',
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_1) AppleWebKit/601.2.4 (KHTML, like Gecko) Version/9.0.1 Safari/601.2.4 facebookexternalhit/1.1 Facebot Twitterbot/1.0',
-    },
+    headers: options?.headers,
   });
   const responseHtml = await response.text();
 
@@ -43,20 +42,26 @@ export const parsePreviewDataFromHtml = (
 };
 
 class StructuredDataHtmlParser {
-  private document: HTMLDocument;
+  private parseResult: ReturnType<typeof parseHTML>;
   private url?: string;
 
   public constructor({ html, url }: { html: string; url?: string }) {
-    this.document = new DOMParser().parseFromString(html, 'text/html');
+    this.parseResult = parseHTML(html);
     this.url = url;
   }
 
   private parseName(): string {
     const name =
-      this.document.head.querySelector('meta[property="og:title"]')?.getAttribute('content') ??
-      this.document.head.querySelector('meta[name="twitter:title"]')?.getAttribute('content') ??
-      this.document.head.querySelector('meta[property="twitter:title"]')?.getAttribute('content') ??
-      this.document.head.title;
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="og:title"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[name="twitter:title"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="twitter:title"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document.title;
 
     return name;
   }
@@ -64,10 +69,10 @@ class StructuredDataHtmlParser {
   private parseImages(): string[] {
     try {
       if (this.url && ['www.amazon.com'].includes(new URL(this.url).hostname)) {
-        const scriptElement = this.document.querySelector(
+        const scriptElement = this.parseResult.document.querySelector<HTMLScriptElement>(
           'script[data-a-state*="desktop-landing-image-data"]'
         );
-        if (scriptElement.textContent) {
+        if (scriptElement?.textContent) {
           const data = JSON.parse(scriptElement.textContent);
           if (typeof data.landingImageUrl === 'string' && new URL(data.landingImageUrl)) {
             return [data.landingImageUrl];
@@ -77,22 +82,36 @@ class StructuredDataHtmlParser {
     } catch (e) {}
 
     const image =
-      this.document.head
-        .querySelector('meta[property="og:image:secure_url"]')
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="og:image:secure_url"]')
         ?.getAttribute('content') ??
-      this.document.head.querySelector('meta[property="og:image:url"]')?.getAttribute('content') ??
-      this.document.head.querySelector('meta[property="og:image"]')?.getAttribute('content') ??
-      this.document.head.querySelector('meta[name="twitter:image:src"]')?.getAttribute('content') ??
-      this.document.head
-        .querySelector('meta[property="twitter:image:src"]')
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="og:image:url"]')
         ?.getAttribute('content') ??
-      this.document.head.querySelector('meta[name="twitter:image"]')?.getAttribute('content') ??
-      this.document.head.querySelector('meta[property="twitter:image"]')?.getAttribute('content') ??
-      this.document.head.querySelector('meta[itemprop="image"]')?.getAttribute('content') ??
-      this.document.head.querySelector<HTMLImageElement>('article img[src]')?.src ??
-      this.document.head.querySelector<HTMLImageElement>('#content img[src]')?.src ??
-      this.document.head.querySelector<HTMLImageElement>('img[alt*="author" i]')?.src ??
-      this.document.head.querySelector<HTMLImageElement>('img[src]:not([aria-hidden="true"])')?.src;
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="og:image"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[name="twitter:image:src"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="twitter:image:src"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[name="twitter:image"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="twitter:image"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[itemprop="image"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document.querySelector<HTMLImageElement>('article img[src]')?.src ??
+      this.parseResult.document.querySelector<HTMLImageElement>('#content img[src]')?.src ??
+      this.parseResult.document.querySelector<HTMLImageElement>('img[alt*="author" i]')?.src ??
+      this.parseResult.document.querySelector<HTMLImageElement>(
+        'img[src]:not([aria-hidden="true"])'
+      )?.src;
 
     // TODO: use `querySelectorAll()` to get all images
     if (image) {
@@ -104,18 +123,24 @@ class StructuredDataHtmlParser {
 
   private parseDescription(): string | undefined {
     const description =
-      this.document.head.querySelector('meta[name="description"]')?.getAttribute('content') ??
-      this.document.head
-        .querySelector('meta[property="og:description"]')
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[name="description"]')
         ?.getAttribute('content') ??
-      this.document.head
-        .querySelector('meta[name="twitter:description"]')
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="og:description"]')
         ?.getAttribute('content') ??
-      this.document.head
-        .querySelector('meta[property="twitter:description"]')
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[name="twitter:description"]')
         ?.getAttribute('content') ??
-      this.document.head.querySelector('meta[name="description"]')?.getAttribute('content') ??
-      this.document.head.querySelector('meta[itemprop="description"]')?.getAttribute('content');
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[property="twitter:description"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[name="description"]')
+        ?.getAttribute('content') ??
+      this.parseResult.document
+        .querySelector<HTMLMetaElement>('meta[itemprop="description"]')
+        ?.getAttribute('content');
 
     if (description) {
       return description;
@@ -124,26 +149,26 @@ class StructuredDataHtmlParser {
 
   private parsePrice(): number | undefined {
     const price =
-      this.document.head
+      this.parseResult.document
         .querySelector<HTMLMetaElement>('meta[property="og:price:amount"]')
         ?.getAttribute('content') ??
-      this.document.head
-        .querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')
+      this.parseResult.document
+        .querySelector<HTMLImageElement>('meta[property="product:price:amount"]')
         ?.getAttribute('content') ??
-      this.document.head
+      this.parseResult.document
         .querySelector<HTMLMetaElement>('meta[property="twitter:data1"]')
         ?.getAttribute('content') ??
-      this.document.head
+      this.parseResult.document
         .querySelector<HTMLMetaElement>('meta[property="twitter:label1"]')
         ?.getAttribute('content') ??
-      this.document.head
+      this.parseResult.document
         .querySelector<HTMLMetaElement>('meta[property="twitter:data2"]')
         ?.getAttribute('content') ??
-      this.document.head
+      this.parseResult.document
         .querySelector<HTMLMetaElement>('meta[property="twitter:label2"]')
         ?.getAttribute('content') ??
-      this.document.head
-        .querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')
+      this.parseResult.document
+        .querySelector<HTMLImageElement>('meta[property="product:price:currency"]')
         ?.getAttribute('content');
 
     if (price) {
@@ -155,12 +180,12 @@ class StructuredDataHtmlParser {
 
   private parseCurrency(): string | undefined {
     const currency =
-      this.document.head.querySelector<HTMLMetaElement>(
+      this.parseResult.document.querySelector<HTMLMetaElement>(
         'meta[property="product:price:currency"]'
       )?.['content'] ??
-      this.document.head.querySelector<HTMLMetaElement>('meta[property="og:price:currency"]')?.[
-        'content'
-      ];
+      this.parseResult.document.querySelector<HTMLMetaElement>(
+        'meta[property="og:price:currency"]'
+      )?.['content'];
 
     if (currency) {
       return currency;
@@ -168,7 +193,7 @@ class StructuredDataHtmlParser {
   }
 
   private parseSiteName(): string | undefined {
-    const siteName = this.document.head.querySelector<HTMLMetaElement>(
+    const siteName = this.parseResult.document.querySelector<HTMLMetaElement>(
       'meta[property="og:site_name"]'
     )?.['content'];
 

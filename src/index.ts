@@ -4,7 +4,7 @@ import { parseHTML } from 'linkedom';
 export const parsePreviewDataFromUrl = async (
   url: string,
   options?: {
-    headers?: HeadersInit;
+    headers?: Record<string, string>;
   }
 ): Promise<
   {
@@ -31,6 +31,10 @@ export const parsePreviewDataFromUrl = async (
     ...parsedData,
   };
 };
+
+parsePreviewDataFromUrl(
+  'https://www.westelm.com/products/mp-classic-rattan-wood-buffet-60-h11181/?sku=2321348'
+).then(console.log);
 
 export const parsePreviewDataFromHtml = (
   html: string

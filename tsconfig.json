@@ -8,7 +8,8 @@
     "target": "ES6",
     "skipLibCheck": true,
     "strict": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "module": "CommonJS"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

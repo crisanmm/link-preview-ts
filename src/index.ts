@@ -187,7 +187,7 @@ class StructuredDataHtmlParser {
   }
 
   private parsePriceAmount(): number | undefined {
-    let priceAmount: string =
+    let priceAmount: string | undefined =
       this.parseResult.document
         .querySelector<HTMLMetaElement>('meta[property="og:price:amount"]')
         ?.getAttribute('content') ??
@@ -198,7 +198,11 @@ class StructuredDataHtmlParser {
       this.getJsonLd({ type: 'Product' })?.offers?.lowPrice ??
       this.getJsonLd({ type: 'Product' })?.offers?.[0]?.price;
 
-    if (priceAmount) {
+    if (typeof priceAmount === 'number') {
+      return priceAmount;
+    }
+
+    if (typeof priceAmount === 'string') {
       if (priceAmount.includes(',') && priceAmount.includes('.')) {
         priceAmount = priceAmount.replace(',', '');
         return Number.parseFloat(priceAmount);
@@ -239,13 +243,29 @@ class StructuredDataHtmlParser {
 
   public parse() {
     return {
-      name: this.parseName(),
-      description: this.parseDescription(),
-      images: this.parseImages(),
-      favicons: this.parseFavicons(),
-      priceAmount: this.parsePriceAmount(),
-      priceCurrency: this.parsePriceCurrency(),
-      siteName: this.parseSiteName(),
+      name: isolateError(() => this.parseName()),
+      description: isolateError(() => this.parseDescription()),
+      images: isolateError(() => this.parseImages()),
+      favicons: isolateError(() => this.parseFavicons()),
+      priceAmount: isolateError(() => this.parsePriceAmount()),
+      priceCurrency: isolateError(() => this.parsePriceCurrency()),
+      siteName: isolateError(() => this.parseSiteName()),
     };
   }
 }
+
+/**
+ * Due to unexpected data in the wild certain parsing logic may fail and throw.
+ * Instead of crashing the entire process, isolate the error for a particular field and return undefined.
+ */
+const isolateError = (fn: () => any) => {
+  try {
+    return fn();
+  } catch (e) {
+    // TODO: implement this env flag
+    if (process.env.LINK_PREVIEW_TS__BUNDLED !== 'true') {
+      console.log(`🚀  -> isolateError  -> e:`, e);
+    }
+    return undefined;
+  }
+};

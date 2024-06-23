@@ -2,48 +2,6 @@ import fetch from 'cross-fetch';
 import { parseHTML } from 'linkedom';
 import striptags from 'striptags';
 
-export const parsePreviewDataFromUrl = async (
-  url: string,
-  options?: {
-    headers?: Record<string, string>;
-  }
-): Promise<
-  {
-    /**
-     * Final URL, with redirects taken into account.
-     */
-    url: string;
-  } & ReturnType<typeof parsePreviewDataFromHtml>
-> => {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      ...options?.headers,
-    },
-  });
-  const responseHtml = await response.text();
-
-  const structuredDataParser = new StructuredDataHtmlParser({
-    html: responseHtml,
-    url,
-  });
-  const parsedData = structuredDataParser.parse();
-
-  return {
-    url: response.url,
-    ...parsedData,
-  };
-};
-
-export const parsePreviewDataFromHtml = (
-  html: string
-): ReturnType<StructuredDataHtmlParser['parse']> => {
-  const structuredDataParser = new StructuredDataHtmlParser({ html });
-  const parsedData = structuredDataParser.parse();
-
-  return parsedData;
-};
-
 class StructuredDataHtmlParser {
   private parseResult: ReturnType<typeof parseHTML>;
   private url?: string;
@@ -268,4 +226,46 @@ const isolateError = (fn: () => any) => {
     }
     return undefined;
   }
+};
+
+export const parsePreviewDataFromUrl = async (
+  url: string,
+  options?: {
+    headers?: Record<string, string>;
+  }
+): Promise<
+  {
+    /**
+     * Final URL, with redirects taken into account.
+     */
+    url: string;
+  } & ReturnType<typeof parsePreviewDataFromHtml>
+> => {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      ...options?.headers,
+    },
+  });
+  const responseHtml = await response.text();
+
+  const structuredDataParser = new StructuredDataHtmlParser({
+    html: responseHtml,
+    url,
+  });
+  const parsedData = structuredDataParser.parse();
+
+  return {
+    url: response.url,
+    ...parsedData,
+  };
+};
+
+export const parsePreviewDataFromHtml = (
+  html: string
+): ReturnType<StructuredDataHtmlParser['parse']> => {
+  const structuredDataParser = new StructuredDataHtmlParser({ html });
+  const parsedData = structuredDataParser.parse();
+
+  return parsedData;
 };

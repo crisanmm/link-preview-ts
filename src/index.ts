@@ -26,8 +26,20 @@ class StructuredDataHtmlParser {
       })
       .flat(Infinity)
       .filter((parsedJsonLd) => {
-        return parsedJsonLd['@type']?.toLowerCase() === type.toLowerCase();
+        return parsedJsonLd?.['@type']?.toLowerCase() === type.toLowerCase();
       })?.[0];
+  }
+
+  private getUrlString(): string | undefined {
+    if (this.url) {
+      return this.url;
+    }
+
+    const canonicalUrl =
+      this.parseResult.document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href;
+    if (canonicalUrl) {
+      return canonicalUrl;
+    }
   }
 
   private parseName(): string | undefined {
@@ -76,16 +88,22 @@ class StructuredDataHtmlParser {
         'meta[property="og:image:secure_url"]'
       ),
       this.parseResult.document.querySelectorAll<HTMLMetaElement>(
-        'meta[property="og:image:secure_url"]'
+        'meta[name="og:image:secure_url"]'
       ),
       this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[property="og:image:url"]'),
+      this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[name="og:image:url"]'),
       this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[property="og:image"]'),
+      this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[name="og:image"]'),
+      this.parseResult.document.querySelectorAll<HTMLMetaElement>(
+        'meta[property="twitter:image:src"]'
+      ),
       this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[name="twitter:image:src"]'),
       this.parseResult.document.querySelectorAll<HTMLMetaElement>(
         'meta[property="twitter:image:src"]'
       ),
-      this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[name="twitter:image"]'),
+      this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[name="twitter:image:src"]'),
       this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[property="twitter:image"]'),
+      this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[name="twitter:image"]'),
       this.parseResult.document.querySelectorAll<HTMLMetaElement>('meta[itemprop="image"]'),
     ]
       .map((nodeList) => Array.from(nodeList))
@@ -99,7 +117,38 @@ class StructuredDataHtmlParser {
     const images = [
       ...imageMetaTags,
       ...(Array.isArray(jsonLdProductImages) ? jsonLdProductImages : []),
-    ].filter((content): content is string => typeof content === 'string');
+    ]
+      .filter((content): content is string => typeof content === 'string')
+      .map((string) => {
+        if (string.startsWith('//')) {
+          /**
+           * URL is protocol-relative URL, add the current page's protocol
+           */
+
+          const urlString = this.getUrlString();
+          const protocol = urlString
+            ? new URL(urlString).protocol
+            : /**
+               * assume `https:`
+               */
+              'https:';
+
+          return `${protocol}${string}`;
+        }
+
+        return string;
+      })
+      .filter((string) => {
+        /**
+         * Filter out invalid URLs
+         */
+        try {
+          new URL(string);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
 
     return [...new Set(images)];
   }
@@ -114,7 +163,46 @@ class StructuredDataHtmlParser {
       .flat(Infinity)
       .map((metatag) => (metatag as any)?.getAttribute?.('href') as string | undefined);
 
-    return faviconLinkTags.filter((content): content is string => typeof content === 'string');
+    return faviconLinkTags
+      .filter((content): content is string => typeof content === 'string')
+      .map((content) => {
+        if (content.startsWith('/') && !content.startsWith('//')) {
+          /**
+           * URL is relative
+           */
+
+          const urlString = this.getUrlString();
+          if (!urlString) {
+            /**
+             * If URL is not available, return the relative URL as is
+             */
+            return content;
+          }
+
+          try {
+            const origin = new URL(urlString).origin;
+            return new URL(content, origin).href;
+          } catch (e) {
+            /**
+             * If URL parsing fails, return the relative URL as is
+             */
+            return content;
+          }
+        }
+
+        return content;
+      })
+      .filter((string) => {
+        /**
+         * Filter out invalid URLs
+         */
+        try {
+          new URL(string);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
   }
 
   private parseDescription(): string | undefined {
@@ -200,6 +288,13 @@ class StructuredDataHtmlParser {
   }
 
   public parse() {
+    /**
+     * TODO:
+     *
+     * in react-native, for certain URLs it returns undefined for all object properties, e.g.:
+     * - https://www.afastores.com/four-hands-lunas-drum-coffee-table.html?cmp=quartile&kw=four-hands-lunas-drum-coffee-table
+     * maybe something is wrong with linkedom on hermes js engine?
+     */
     return {
       name: isolateError(() => this.parseName()),
       description: isolateError(() => this.parseDescription()),
